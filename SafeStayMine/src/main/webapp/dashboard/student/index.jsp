@@ -503,9 +503,13 @@
             <i class="fas fa-credit-card"></i>
             <span>Pay Rent</span>
         </div>
-        <div class="quick-action" onclick="location.href='room-booking.jsp'">
+        <div class="quick-action" onclick="location.href='<%= request.getContextPath() %>/rooms'">
             <i class="fas fa-bed"></i>
             <span>Book Room</span>
+        </div>
+        <div class="quick-action" onclick="location.href='<%= request.getContextPath() %>/inquiry'">
+            <i class="fas fa-envelope-open-text"></i>
+            <span>Room Inquiry</span>
         </div>
         <div class="quick-action" onclick="location.href='meal-dashboard.jsp'">
             <i class="fas fa-utensils"></i>

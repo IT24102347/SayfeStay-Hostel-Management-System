@@ -3,8 +3,13 @@
 <%
     // ============ SESSION CHECK ============
     User user = (User) session.getAttribute("user");
-    if (user == null || !"Owner".equalsIgnoreCase(user.getRole())) {
+    if (user == null) {
         response.sendRedirect(request.getContextPath() + "/login.jsp");
+        return;
+    }
+
+    if (!"Owner".equalsIgnoreCase(user.getRole())) {
+        response.sendRedirect(request.getContextPath() + "/dashboard/student/");
         return;
     }
 
@@ -12,13 +17,6 @@
     Owner owner = (Owner) request.getAttribute("owner");
     Hostel hostel = (Hostel) request.getAttribute("hostel");
     Map<String, Object> stats = (Map<String, Object>) request.getAttribute("stats");
-    List<RoomBooking> recentRequests = (List<RoomBooking>) request.getAttribute("recentRequests");
-    List<Room> availableRooms = (List<Room>) request.getAttribute("availableRooms");
-    Integer pendingCount = (Integer) request.getAttribute("pendingCount");
-
-    if (recentRequests == null) recentRequests = new ArrayList<>();
-    if (availableRooms == null) availableRooms = new ArrayList<>();
-    if (pendingCount == null) pendingCount = 0;
 
     // ============ NULL CHECKS ============
     if (owner == null) {
@@ -52,7 +50,6 @@
     // ============ FORMATTERS ============
     DecimalFormat df = new DecimalFormat("#,###");
     SimpleDateFormat sdf = new SimpleDateFormat("EEEE, MMMM d, yyyy");
-    SimpleDateFormat timeFormat = new SimpleDateFormat("dd MMM hh:mm a");
 %>
 <!DOCTYPE html>
 <html lang="en">
@@ -183,15 +180,6 @@
             width: 25px;
             margin-right: 15px;
             font-size: 18px;
-        }
-
-        .badge {
-            background: #ef4444;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 20px;
-            font-size: 12px;
-            margin-left: 10px;
         }
 
         /* ========== MAIN CONTENT ========== */
@@ -462,10 +450,10 @@
             display: block;
         }
 
-        /* ========== DASHBOARD GRID (NOW 3 COLUMNS) ========== */
-        .dashboard-grid-3 {
+        /* ========== DASHBOARD GRID ========== */
+        .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 25px;
             margin-bottom: 25px;
         }
@@ -563,11 +551,6 @@
             color: #155724;
         }
 
-        .badge-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-
         /* ========== PAYMENT LIST ========== */
         .payment-list {
             list-style: none;
@@ -605,64 +588,7 @@
             border-radius: 50px;
         }
 
-        /* ========== REQUEST LIST ========== */
-        .request-list {
-            list-style: none;
-        }
-
-        .request-item {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 12px 0;
-            border-bottom: 1px solid #f1f5f9;
-        }
-
-        .request-item:last-child {
-            border-bottom: none;
-        }
-
-        .request-avatar {
-            width: 45px;
-            height: 45px;
-            background: #eef2ff;
-            color: #4f46e5;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 18px;
-        }
-
-        .request-info h4 {
-            font-size: 15px;
-            font-weight: 600;
-            color: #0f172a;
-            margin-bottom: 4px;
-        }
-
-        .request-info p {
-            font-size: 12px;
-            color: #64748b;
-        }
-
-        .request-info p i {
-            margin-right: 4px;
-            color: #4f46e5;
-        }
-
-        .request-type {
-            display: inline-block;
-            padding: 3px 10px;
-            background: #f1f5f9;
-            border-radius: 30px;
-            font-size: 11px;
-            font-weight: 600;
-            color: #475569;
-            margin-left: 8px;
-        }
-
+        /* ========== EMPTY STATE ========== */
         .empty-state {
             text-align: center;
             padding: 40px 20px;
@@ -716,10 +642,6 @@
             .quick-actions {
                 grid-template-columns: repeat(2, 1fr);
             }
-
-            .dashboard-grid-3 {
-                grid-template-columns: repeat(2, 1fr);
-            }
         }
 
         @media (max-width: 992px) {
@@ -753,7 +675,7 @@
                 margin-left: 80px;
             }
 
-            .dashboard-grid-3 {
+            .dashboard-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -869,26 +791,39 @@
             <i class="fas fa-user-graduate"></i>
             <span>Students</span>
         </a>
-        <a href="<%= request.getContextPath() %>/dashboard/owner/rooms" class="nav-item">
+        <a href="<%= request.getContextPath() %>/dashboard/owner/staff" class="nav-item">
+            <i class="fas fa-users"></i>
+            <span>Staff</span>
+        </a>
+        <a href="<%= request.getContextPath() %>/admin/rooms" class="nav-item">
             <i class="fas fa-door-open"></i>
             <span>Rooms</span>
         </a>
-        <a href="<%= request.getContextPath() %>/dashboard/owner/reviews" class="nav-item">
-            <i class="fas fa-star"></i>
-            <span>Reviews & Ratings</span>
-        </a>
+         <a href="<%= request.getContextPath() %>/admin/bookings" class="nav-item">
+                    <i class="fas fa-door-open"></i>
+                    <span>Bookings</span>
+                </a>
+                <a href="<%= request.getContextPath() %>/admin/inquiries" class="nav-item">
+                                    <i class="fas fa-door-open"></i>
+                                    <span>Inquiries</span>
+                                </a>
         <a href="<%= request.getContextPath() %>/dashboard/owner/payments" class="nav-item">
             <i class="fas fa-credit-card"></i>
             <span>Payments</span>
         </a>
-        <a href="<%= request.getContextPath() %>/dashboard/owner/pending-bookings.jsp" class="nav-item">
-            <i class="fas fa-clock"></i>
-            <span>Requests</span>
-            <% if (pendingCount > 0) { %>
-            <span class="badge"><%= pendingCount %></span>
-            <% } %>
+        <a href="<%= request.getContextPath() %>/dashboard/owner/maintenance" class="nav-item">
+            <i class="fas fa-tools"></i>
+            <span>Maintenance</span>
         </a>
-        <a href="<%= request.getContextPath() %>/logout" class="nav-item" style="margin-top: 50px;">
+        <a href="<%= request.getContextPath() %>/dashboard/owner/reports" class="nav-item">
+            <i class="fas fa-chart-line"></i>
+            <span>Reports</span>
+        </a>
+        <a href="<%= request.getContextPath() %>/dashboard/owner/settings" class="nav-item">
+            <i class="fas fa-cog"></i>
+            <span>Settings</span>
+        </a>
+        <a href="javascript:void(0)" onclick="logout()" class="nav-item" style="margin-top: 20px;">
             <i class="fas fa-sign-out-alt"></i>
             <span>Logout</span>
         </a>
@@ -1039,18 +974,13 @@
             <i class="fas fa-user-plus"></i>
             <span>Add Student</span>
         </div>
-        <div class="action-card" onclick="location.href='<%= request.getContextPath() %>/dashboard/owner/rooms?action=add'">
+        <div class="action-card" onclick="location.href='<%= request.getContextPath() %>/dashboard/owner/staff?action=add'">
+            <i class="fas fa-user-tie"></i>
+            <span>Add Staff</span>
+        </div>
+        <div class="action-card" onclick="location.href='<%= request.getContextPath() %>/admin/rooms?action=add'">
             <i class="fas fa-door-open"></i>
             <span>Add Room</span>
-        </div>
-        <div class="action-card" onclick="location.href='<%= request.getContextPath() %>/dashboard/owner/pending-bookings.jsp'">
-            <i class="fas fa-clock"></i>
-            <span>View Requests</span>
-            <% if (pendingCount > 0) { %>
-            <span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 20px; font-size: 12px; margin-left: 5px;">
-                    <%= pendingCount %>
-                </span>
-            <% } %>
         </div>
         <div class="action-card" onclick="location.href='<%= request.getContextPath() %>/dashboard/owner/reports'">
             <i class="fas fa-file-alt"></i>
@@ -1058,8 +988,8 @@
         </div>
     </div>
 
-    <!-- ========== DASHBOARD GRID 3 COLUMNS ========== -->
-    <div class="dashboard-grid-3">
+    <!-- ========== DASHBOARD GRID ========== -->
+    <div class="dashboard-grid">
         <!-- ========== RECENT STUDENTS ========== -->
         <div class="card">
             <div class="card-header">
@@ -1099,6 +1029,16 @@
                         <p>
                             <i class="fas fa-id-card"></i> STD003 •
                             <i class="fas fa-graduation-cap"></i> Year 3
+                        </p>
+                    </div>
+                    <span class="badge badge-active">Active</span>
+                </div>
+                <div class="student-item">
+                    <div class="student-info">
+                        <h4>Amali Jayasuriya</h4>
+                        <p>
+                            <i class="fas fa-id-card"></i> STD004 •
+                            <i class="fas fa-graduation-cap"></i> Year 2
                         </p>
                     </div>
                     <span class="badge badge-active">Active</span>
@@ -1149,54 +1089,17 @@
                         <div class="payment-date">12 Jan 2024</div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- ========== BOOKING REQUESTS (NEW) ========== -->
-        <div class="card">
-            <div class="card-header">
-                <h3>
-                    <i class="fas fa-clock"></i>
-                    Booking Requests
-                    <% if (pendingCount > 0) { %>
-                    <span style="background: #ef4444; color: white; padding: 2px 10px; border-radius: 30px; font-size: 12px;">
-                            <%= pendingCount %> new
-                        </span>
-                    <% } %>
-                </h3>
-                <a href="<%= request.getContextPath() %>/dashboard/owner/pending-bookings.jsp" class="view-all">
-                    View All <i class="fas fa-arrow-right"></i>
-                </a>
-            </div>
-
-            <% if (recentRequests.isEmpty()) { %>
-            <div class="empty-state">
-                <i class="fas fa-inbox"></i>
-                <p>No pending requests</p>
-            </div>
-            <% } else { %>
-            <div class="request-list">
-                <% for (RoomBooking req : recentRequests) { %>
-                <div class="request-item">
-                    <div class="request-avatar">
-                        <%= req.getStudentName() != null ? req.getStudentName().charAt(0) : 'S' %>
+                <div class="payment-item">
+                    <div>
+                        <div style="font-weight: 600; margin-bottom: 4px;">Amali Jayasuriya</div>
+                        <span class="payment-method">Card</span>
                     </div>
-                    <div class="request-info">
-                        <h4>
-                            <%= req.getStudentName() != null ? req.getStudentName() : "Student" %>
-                            <span class="request-type"><%= req.getRoomType() %></span>
-                        </h4>
-                        <p>
-                            <i class="fas fa-calendar"></i> <%= timeFormat.format(req.getCreatedAt()) %> •
-                            <% if ("Yes".equals(req.getNeedAc())) { %> AC <% } %>
-                            <% if ("Yes".equals(req.getNeedFan())) { %> Fan <% } %>
-                        </p>
+                    <div style="text-align: right;">
+                        <div class="payment-amount">Rs. 15,000</div>
+                        <div class="payment-date">10 Jan 2024</div>
                     </div>
-                    <span class="badge badge-pending">Pending</span>
                 </div>
-                <% } %>
             </div>
-            <% } %>
         </div>
     </div>
 
@@ -1207,7 +1110,7 @@
                 <i class="fas fa-door-open"></i>
                 Room Status Overview
             </h3>
-            <a href="<%= request.getContextPath() %>/dashboard/owner/rooms" class="view-all">
+            <a href="<%= request.getContextPath() %>/admin/rooms" class="view-all">
                 Manage Rooms <i class="fas fa-arrow-right"></i>
             </a>
         </div>
@@ -1228,15 +1131,18 @@
         </div>
 
         <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <span style="background: #eef2ff; color: #4f46e5; padding: 6px 15px; border-radius: 50px; font-size: 13px;">
+                    <i class="fas fa-bed"></i> Single: 10/15
+                </span>
             <span style="background: #eef2ff; color: #4f46e5; padding: 6px 15px; border-radius: 50px; font-size: 13px;">
-                <i class="fas fa-bed"></i> Single: 10/15
-            </span>
+                    <i class="fas fa-bed"></i> Double: 15/20
+                </span>
             <span style="background: #eef2ff; color: #4f46e5; padding: 6px 15px; border-radius: 50px; font-size: 13px;">
-                <i class="fas fa-bed"></i> Double: 15/20
-            </span>
+                    <i class="fas fa-bed"></i> Triple: 5/10
+                </span>
             <span style="background: #eef2ff; color: #4f46e5; padding: 6px 15px; border-radius: 50px; font-size: 13px;">
-                <i class="fas fa-bed"></i> Triple: 5/10
-            </span>
+                    <i class="fas fa-bed"></i> Dormitory: 5/5
+                </span>
         </div>
     </div>
 </div>

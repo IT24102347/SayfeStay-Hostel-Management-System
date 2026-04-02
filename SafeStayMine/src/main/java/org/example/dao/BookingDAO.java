@@ -1,8 +1,7 @@
 package org.example.dao;
 
-import org.example.model.Room;
-import org.example.model.RoomBooking;
-import org.example.model.RoomAssignment;
+import org.example.model.BookingRequest;
+
 import java.sql.*;
 import java.util.*;
 
@@ -15,282 +14,409 @@ public class BookingDAO {
         return DriverManager.getConnection(dbURL, dbUser, dbPass);
     }
 
-    // ============ GENERATE BOOKING NUMBER ============
-    public String generateBookingNo() {
-        String sql = "SELECT COUNT(*) as count FROM room_bookings";
+    // ============================================
+    // 1. GENERATE BOOKING ID
+    // ============================================
+    private String generateBookingId(Connection con) throws SQLException {
+        String sql = "SELECT MAX(booking_id) as maxId FROM booking_request WHERE booking_id LIKE 'BR%'";
 
-        try (Connection con = getConnection();
-             PreparedStatement pst = con.prepareStatement(sql);
+        try (PreparedStatement pst = con.prepareStatement(sql);
              ResultSet rs = pst.executeQuery()) {
 
-            if (rs.next()) {
-                int count = rs.getInt("count");
-                return String.format("BKG%03d", count + 1);
+            if (rs.next() && rs.getString("maxId") != null) {
+                String lastId = rs.getString("maxId");
+                try {
+                    int nextNumber = Integer.parseInt(lastId.substring(2)) + 1;
+                    return String.format("BR%03d", nextNumber);
+                } catch (Exception e) {
+                    return "BR001";
+                }
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
-        return "BKG001";
+        return "BR001";
     }
 
-    // ============ CREATE BOOKING ============
-    public boolean createBooking(RoomBooking booking) {
-        String sql = "INSERT INTO room_bookings (" +
-                "booking_no, studentId, room_type, floor, " +
-                "need_ac, need_fan, status, created_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, 'Pending', GETDATE())";
-
-        try (Connection con = getConnection();
-             PreparedStatement pst = con.prepareStatement(sql)) {
-
-            pst.setString(1, booking.getBookingNo());
-            pst.setString(2, booking.getStudentId());
-            pst.setString(3, booking.getRoomType());
-            pst.setInt(4, booking.getFloor());
-            pst.setString(5, booking.getNeedAc());
-            pst.setString(6, booking.getNeedFan());
-
-            int result = pst.executeUpdate();
-            System.out.println("✅ Booking created: " + booking.getBookingNo() + " for student: " + booking.getStudentId());
-            return result > 0;
-
-        } catch (SQLException e) {
-            System.out.println("❌ Error creating booking: " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    // ============ GET PENDING BOOKINGS ============
-    public List<RoomBooking> getPendingBookings() {
-        List<RoomBooking> list = new ArrayList<>();
-        String sql = "SELECT rb.*, u.fullName as studentName " +
-                "FROM room_bookings rb " +
-                "LEFT JOIN users u ON rb.studentId = u.userId " +
-                "WHERE rb.status = 'Pending' " +
-                "ORDER BY rb.created_at DESC";
-
-        System.out.println("🔍 Executing getPendingBookings query...");
-
-        try (Connection con = getConnection();
-             PreparedStatement pst = con.prepareStatement(sql);
-             ResultSet rs = pst.executeQuery()) {
-
-            while (rs.next()) {
-                RoomBooking rb = new RoomBooking();
-                rb.setId(rs.getInt("id"));
-                rb.setBookingNo(rs.getString("booking_no"));
-                rb.setStudentId(rs.getString("studentId"));
-                rb.setStudentName(rs.getString("studentName") != null ? rs.getString("studentName") : "Unknown");
-                rb.setRoomType(rs.getString("room_type"));
-                rb.setFloor(rs.getInt("floor"));
-                rb.setNeedAc(rs.getString("need_ac"));
-                rb.setNeedFan(rs.getString("need_fan"));
-                rb.setStatus(rs.getString("status"));
-                rb.setCreatedAt(rs.getTimestamp("created_at"));
-
-                list.add(rb);
-                System.out.println("  ✅ Found: " + rb.getBookingNo() + " | " + rb.getStudentName());
-            }
-
-            System.out.println("📊 Total pending bookings found: " + list.size());
-
-        } catch (SQLException e) {
-            System.out.println("❌ SQL Error in getPendingBookings: " + e.getMessage());
-            e.printStackTrace();
-        }
-
-        return list;
-    }
-
-    // ============ GET STUDENT BOOKINGS ============
-    public List<RoomBooking> getStudentBookings(String studentId) {
-        List<RoomBooking> list = new ArrayList<>();
-        String sql = "SELECT * FROM room_bookings WHERE studentId = ? ORDER BY created_at DESC";
-
-        try (Connection con = getConnection();
-             PreparedStatement pst = con.prepareStatement(sql)) {
-
-            pst.setString(1, studentId);
-            ResultSet rs = pst.executeQuery();
-
-            while (rs.next()) {
-                RoomBooking rb = new RoomBooking();
-                rb.setId(rs.getInt("id"));
-                rb.setBookingNo(rs.getString("booking_no"));
-                rb.setStudentId(rs.getString("studentId"));
-                rb.setRoomType(rs.getString("room_type"));
-                rb.setFloor(rs.getInt("floor"));
-                rb.setNeedAc(rs.getString("need_ac"));
-                rb.setNeedFan(rs.getString("need_fan"));
-                rb.setStatus(rs.getString("status"));
-                rb.setAssignedRoomId(rs.getInt("assigned_room_id"));
-                rb.setAssignedRoomNumber(rs.getString("assigned_room_number"));
-                rb.setCreatedAt(rs.getTimestamp("created_at"));
-                list.add(rb);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return list;
-    }
-
-    // ============ GET STUDENT ASSIGNMENT ============
-    public RoomAssignment getStudentAssignment(String studentId) {
-        String sql = "SELECT ra.*, u.fullName as studentName FROM room_assignments ra " +
-                "LEFT JOIN users u ON ra.studentId = u.userId " +
-                "WHERE ra.studentId = ? AND ra.status = 'Active'";
-
-        try (Connection con = getConnection();
-             PreparedStatement pst = con.prepareStatement(sql)) {
-
-            pst.setString(1, studentId);
-            ResultSet rs = pst.executeQuery();
-
-            if (rs.next()) {
-                RoomAssignment ra = new RoomAssignment();
-                ra.setId(rs.getInt("id"));
-                ra.setStudentId(rs.getString("studentId"));
-                ra.setStudentName(rs.getString("studentName"));
-                ra.setRoomId(rs.getInt("room_id"));
-                ra.setRoomNumber(rs.getString("room_number"));
-                ra.setStartDate(rs.getDate("start_date"));
-                ra.setRentAmount(rs.getDouble("rent_amount"));
-                return ra;
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    // ============ APPROVE BOOKING (FIXED) ============
-    public boolean approveBooking(int bookingId, int roomId, String assignedBy, String remarks) {
+    // ============================================
+    // 2. CREATE BOOKING REQUEST
+    // ============================================
+    public boolean createBookingRequest(BookingRequest booking) {
         Connection con = null;
+
         try {
             con = getConnection();
             con.setAutoCommit(false);
 
-            // Get room details
-            RoomDAO roomDAO = new RoomDAO();
-            Room room = roomDAO.getRoomById(roomId);
+            // Generate booking ID
+            String bookingId = generateBookingId(con);
+            booking.setBookingId(bookingId);
 
-            if (room == null || !room.isAvailable()) {
-                System.out.println("❌ Room not available: ID " + roomId);
-                return false;
-            }
+            String sql = "INSERT INTO booking_request " +
+                    "(booking_id, student_id, room_id, student_name, student_age, " +
+                    "student_phone, student_email, guardian_name, guardian_phone, " +
+                    "guardian_relationship, booking_start_date, booking_end_date, " +
+                    "duration_months, special_requests, key_money, monthly_rent, " +
+                    "total_amount, payment_method, status) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending')";
 
-            // 1. Update booking status
-            String sql1 = "UPDATE room_bookings SET " +
-                    "status = 'Approved', " +
-                    "assigned_room_id = ?, " +
-                    "assigned_room_number = ?, " +
-                    "assigned_by = ?, " +
-                    "remarks = ?, " +
-                    "updated_at = GETDATE() " +
-                    "WHERE id = ?";
+            try (PreparedStatement pst = con.prepareStatement(sql)) {
+                pst.setString(1, booking.getBookingId());
+                pst.setString(2, booking.getStudentId());
+                pst.setInt(3, booking.getRoomId());
+                pst.setString(4, booking.getStudentName());
+                pst.setInt(5, booking.getStudentAge());
+                pst.setString(6, booking.getStudentPhone());
+                pst.setString(7, booking.getStudentEmail());
+                pst.setString(8, booking.getGuardianName());
+                pst.setString(9, booking.getGuardianPhone());
+                pst.setString(10, booking.getGuardianRelationship());
+                pst.setDate(11, booking.getBookingStartDate());
+                pst.setDate(12, booking.getBookingEndDate());
+                pst.setInt(13, booking.getDurationMonths());
+                pst.setString(14, booking.getSpecialRequests());
+                pst.setBigDecimal(15, booking.getKeyMoney());
+                pst.setBigDecimal(16, booking.getMonthlyRent());
+                pst.setBigDecimal(17, booking.getTotalAmount());
+                pst.setString(18, booking.getPaymentMethod());
 
-            PreparedStatement pst1 = con.prepareStatement(sql1);
-            pst1.setInt(1, roomId);
-            pst1.setString(2, room.getRoomNumber());
-            pst1.setString(3, assignedBy);
-            pst1.setString(4, remarks != null ? remarks : "");
-            pst1.setInt(5, bookingId);
-            pst1.executeUpdate();
-
-            // 2. Get student ID from booking
-            String sql2 = "SELECT studentId FROM room_bookings WHERE id = ?";
-            PreparedStatement pst2 = con.prepareStatement(sql2);
-            pst2.setInt(1, bookingId);
-            ResultSet rs = pst2.executeQuery();
-
-            if (rs.next()) {
-                String studentId = rs.getString("studentId");
-
-                // 3. Create room assignment
-                String sql3 = "INSERT INTO room_assignments (" +
-                        "studentId, room_id, room_number, start_date, rent_amount, status, created_at) " +
-                        "VALUES (?, ?, ?, GETDATE(), ?, 'Active', GETDATE())";
-
-                PreparedStatement pst3 = con.prepareStatement(sql3);
-                pst3.setString(1, studentId);
-                pst3.setInt(2, roomId);
-                pst3.setString(3, room.getRoomNumber());
-                pst3.setDouble(4, room.getPriceMonthly());
-                pst3.executeUpdate();
-
-                // 4. Update room occupied count
-                String sql4 = "UPDATE room SET occupied = occupied + 1 WHERE id = ?";
-                PreparedStatement pst4 = con.prepareStatement(sql4);
-                pst4.setInt(1, roomId);
-                pst4.executeUpdate();
-
-                // 5. Update room status if fully occupied
-                String sql5 = "UPDATE room SET status = 'Occupied' WHERE id = ? AND occupied >= capacity";
-                PreparedStatement pst5 = con.prepareStatement(sql5);
-                pst5.setInt(1, roomId);
-                pst5.executeUpdate();
+                pst.executeUpdate();
             }
 
             con.commit();
-            System.out.println("✅ Booking approved: ID " + bookingId + " -> Room " + room.getRoomNumber());
             return true;
 
         } catch (SQLException e) {
-            try { if (con != null) con.rollback(); } catch (SQLException ex) {}
-            System.out.println("❌ Error approving booking: " + e.getMessage());
+            try {
+                if (con != null) con.rollback();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
             e.printStackTrace();
             return false;
         } finally {
-            try { if (con != null) con.close(); } catch (SQLException e) {}
+            try {
+                if (con != null) {
+                    con.setAutoCommit(true);
+                    con.close();
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
         }
     }
 
-    // ============ REJECT BOOKING ============
-    public boolean rejectBooking(int bookingId, String remarks) {
-        String sql = "UPDATE room_bookings SET status = 'Rejected', remarks = ? WHERE id = ?";
+    // ============================================
+    // 3. GET ALL BOOKING REQUESTS
+    // ============================================
+    public List<BookingRequest> getAllBookingRequests() {
+        List<BookingRequest> bookings = new ArrayList<>();
+        String sql = "SELECT br.*, r.room_number, r.floor_number, r.room_type, " +
+                "r.price_monthly, h.hostel_name, u.username as student_username " +
+                "FROM booking_request br " +
+                "JOIN room r ON br.room_id = r.id " +
+                "JOIN hostel h ON r.hostel_id = h.id " +
+                "JOIN users u ON br.student_id = u.userId " +
+                "ORDER BY br.requested_at DESC";
+
+        try (Connection con = getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
+
+            while (rs.next()) {
+                bookings.add(extractBookingFromResultSet(rs));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return bookings;
+    }
+
+    // ============================================
+    // 4. GET BOOKING REQUESTS BY STUDENT
+    // ============================================
+    public List<BookingRequest> getBookingsByStudent(String studentId) {
+        List<BookingRequest> bookings = new ArrayList<>();
+        String sql = "SELECT br.*, r.room_number, r.floor_number, r.room_type, " +
+                "r.price_monthly, h.hostel_name, u.username as student_username " +
+                "FROM booking_request br " +
+                "JOIN room r ON br.room_id = r.id " +
+                "JOIN hostel h ON r.hostel_id = h.id " +
+                "JOIN users u ON br.student_id = u.userId " +
+                "WHERE br.student_id = ? " +
+                "ORDER BY br.requested_at DESC";
 
         try (Connection con = getConnection();
              PreparedStatement pst = con.prepareStatement(sql)) {
 
-            pst.setString(1, remarks);
-            pst.setInt(2, bookingId);
+            pst.setString(1, studentId);
+            ResultSet rs = pst.executeQuery();
 
-            int result = pst.executeUpdate();
-            if (result > 0) {
-                System.out.println("✅ Booking rejected: ID " + bookingId);
-                return true;
+            while (rs.next()) {
+                bookings.add(extractBookingFromResultSet(rs));
             }
-            return false;
-
         } catch (SQLException e) {
-            System.out.println("❌ Error rejecting booking: " + e.getMessage());
             e.printStackTrace();
-            return false;
         }
+        return bookings;
     }
 
-    // ============ CANCEL BOOKING ============
-    public boolean cancelBooking(int bookingId, String studentId) {
-        String sql = "UPDATE room_bookings SET status = 'Cancelled' " +
-                "WHERE id = ? AND studentId = ? AND status = 'Pending'";
+    // ============================================
+    // 5. GET BOOKING BY ID
+    // ============================================
+    public BookingRequest getBookingById(int bookingId) {
+        BookingRequest booking = null;
+        String sql = "SELECT br.*, r.room_number, r.floor_number, r.room_type, " +
+                "r.price_monthly, h.hostel_name, u.username as student_username " +
+                "FROM booking_request br " +
+                "JOIN room r ON br.room_id = r.id " +
+                "JOIN hostel h ON r.hostel_id = h.id " +
+                "JOIN users u ON br.student_id = u.userId " +
+                "WHERE br.id = ?";
 
         try (Connection con = getConnection();
              PreparedStatement pst = con.prepareStatement(sql)) {
 
             pst.setInt(1, bookingId);
-            pst.setString(2, studentId);
+            ResultSet rs = pst.executeQuery();
+
+            if (rs.next()) {
+                booking = extractBookingFromResultSet(rs);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return booking;
+    }
+
+    // ============================================
+    // 6. GET PENDING BOOKINGS
+    // ============================================
+    public List<BookingRequest> getPendingBookings() {
+        List<BookingRequest> bookings = new ArrayList<>();
+        String sql = "SELECT br.*, r.room_number, r.floor_number, r.room_type, " +
+                "r.price_monthly, h.hostel_name, u.username as student_username " +
+                "FROM booking_request br " +
+                "JOIN room r ON br.room_id = r.id " +
+                "JOIN hostel h ON r.hostel_id = h.id " +
+                "JOIN users u ON br.student_id = u.userId " +
+                "WHERE br.status = 'Pending' " +
+                "ORDER BY br.requested_at ASC";
+
+        try (Connection con = getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
+
+            while (rs.next()) {
+                bookings.add(extractBookingFromResultSet(rs));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return bookings;
+    }
+
+    // ============================================
+    // 7. APPROVE BOOKING
+    // ============================================
+    public boolean approveBooking(int bookingId, String adminId, String remarks) {
+        Connection con = null;
+
+        try {
+            con = getConnection();
+            con.setAutoCommit(false);
+
+            // Step 1: Get room_id BEFORE updating (no lock conflict yet)
+            int roomId = -1;
+            String getRoomSql = "SELECT room_id FROM booking_request WHERE id = ?";
+            try (PreparedStatement pst = con.prepareStatement(getRoomSql)) {
+                pst.setInt(1, bookingId);
+                ResultSet rs = pst.executeQuery();
+                if (rs.next()) {
+                    roomId = rs.getInt("room_id");
+                }
+            }
+
+            if (roomId == -1) {
+                con.rollback();
+                return false;
+            }
+
+            // Step 2: Update booking status
+            String sql = "UPDATE booking_request SET " +
+                    "status = 'Approved', " +
+                    "admin_remarks = ?, " +
+                    "approved_at = GETDATE(), " +
+                    "approved_by = ? " +
+                    "WHERE id = ?";
+            try (PreparedStatement pst = con.prepareStatement(sql)) {
+                pst.setString(1, remarks);
+                pst.setString(2, adminId);
+                pst.setInt(3, bookingId);
+                pst.executeUpdate();
+            }
+
+            // Step 3: Update room occupancy using same connection
+            String updateRoom = "UPDATE room SET occupied = occupied + 1 WHERE id = ?";
+            try (PreparedStatement pst = con.prepareStatement(updateRoom)) {
+                pst.setInt(1, roomId);
+                pst.executeUpdate();
+            }
+
+            con.commit();
+            return true;
+
+        } catch (SQLException e) {
+            try { if (con != null) con.rollback(); } catch (SQLException ex) { ex.printStackTrace(); }
+            e.printStackTrace();
+            return false;
+        } finally {
+            try {
+                if (con != null) { con.setAutoCommit(true); con.close(); }
+            } catch (SQLException e) { e.printStackTrace(); }
+        }
+    }
+
+    // ============================================
+    // 8. REJECT BOOKING
+    // ============================================
+    public boolean rejectBooking(int bookingId, String adminId, String remarks) {
+        String sql = "UPDATE booking_request SET " +
+                "status = 'Rejected', " +
+                "admin_remarks = ?, " +
+                "approved_at = GETDATE(), " +
+                "approved_by = ? " +
+                "WHERE id = ?";
+
+        try (Connection con = getConnection();
+             PreparedStatement pst = con.prepareStatement(sql)) {
+
+            pst.setString(1, remarks);
+            pst.setString(2, adminId);
+            pst.setInt(3, bookingId);
 
             int result = pst.executeUpdate();
-            if (result > 0) {
-                System.out.println("✅ Booking cancelled: ID " + bookingId);
-                return true;
-            }
-            return false;
+            return result > 0;
 
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
         }
+    }
+
+    // ============================================
+    // 9. CANCEL BOOKING
+    // ============================================
+    public boolean cancelBooking(int bookingId) {
+        String sql = "UPDATE booking_request SET status = 'Cancelled' WHERE id = ?";
+
+        try (Connection con = getConnection();
+             PreparedStatement pst = con.prepareStatement(sql)) {
+
+            pst.setInt(1, bookingId);
+            int result = pst.executeUpdate();
+            return result > 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // ============================================
+    // 10. UPDATE PAYMENT STATUS
+    // ============================================
+    public boolean updatePaymentStatus(int bookingId, String status) {
+        String sql = "UPDATE booking_request SET payment_status = ? WHERE id = ?";
+
+        try (Connection con = getConnection();
+             PreparedStatement pst = con.prepareStatement(sql)) {
+
+            pst.setString(1, status);
+            pst.setInt(2, bookingId);
+
+            int result = pst.executeUpdate();
+            return result > 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // ============================================
+    // 11. GET BOOKING STATISTICS
+    // ============================================
+    public Map<String, Integer> getBookingStatistics() {
+        Map<String, Integer> stats = new HashMap<>();
+        String sql = "SELECT " +
+                "COUNT(*) as total, " +
+                "SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) as pending, " +
+                "SUM(CASE WHEN status = 'Approved' THEN 1 ELSE 0 END) as approved, " +
+                "SUM(CASE WHEN status = 'Rejected' THEN 1 ELSE 0 END) as rejected " +
+                "FROM booking_request";
+
+        try (Connection con = getConnection();
+             PreparedStatement pst = con.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
+
+            if (rs.next()) {
+                stats.put("total", rs.getInt("total"));
+                stats.put("pending", rs.getInt("pending"));
+                stats.put("approved", rs.getInt("approved"));
+                stats.put("rejected", rs.getInt("rejected"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return stats;
+    }
+
+    // ============================================
+    // HELPER METHOD: EXTRACT BOOKING FROM RESULTSET
+    // ============================================
+    private BookingRequest extractBookingFromResultSet(ResultSet rs) throws SQLException {
+        BookingRequest booking = new BookingRequest();
+
+        booking.setId(rs.getInt("id"));
+        booking.setBookingId(rs.getString("booking_id"));
+        booking.setStudentId(rs.getString("student_id"));
+        booking.setRoomId(rs.getInt("room_id"));
+
+        booking.setStudentName(rs.getString("student_name"));
+        booking.setStudentAge(rs.getInt("student_age"));
+        booking.setStudentPhone(rs.getString("student_phone"));
+        booking.setStudentEmail(rs.getString("student_email"));
+
+        booking.setGuardianName(rs.getString("guardian_name"));
+        booking.setGuardianPhone(rs.getString("guardian_phone"));
+        booking.setGuardianRelationship(rs.getString("guardian_relationship"));
+
+        booking.setBookingStartDate(rs.getDate("booking_start_date"));
+        booking.setBookingEndDate(rs.getDate("booking_end_date"));
+        booking.setDurationMonths(rs.getInt("duration_months"));
+
+        booking.setSpecialRequests(rs.getString("special_requests"));
+
+        booking.setKeyMoney(rs.getBigDecimal("key_money"));
+        booking.setMonthlyRent(rs.getBigDecimal("monthly_rent"));
+        booking.setTotalAmount(rs.getBigDecimal("total_amount"));
+        booking.setPaymentMethod(rs.getString("payment_method"));
+        booking.setPaymentStatus(rs.getString("payment_status"));
+
+        booking.setStatus(rs.getString("status"));
+        booking.setAdminRemarks(rs.getString("admin_remarks"));
+
+        booking.setRequestedAt(rs.getTimestamp("requested_at"));
+        booking.setApprovedAt(rs.getTimestamp("approved_at"));
+        booking.setApprovedBy(rs.getString("approved_by"));
+
+        // Room info
+        booking.setRoomNumber(rs.getString("room_number"));
+        booking.setFloorNumber(rs.getInt("floor_number"));
+        booking.setRoomType(rs.getString("room_type"));
+        booking.setPriceMonthly(rs.getBigDecimal("price_monthly"));
+        booking.setHostelName(rs.getString("hostel_name"));
+        booking.setStudentUsername(rs.getString("student_username"));
+
+        return booking;
     }
 }
