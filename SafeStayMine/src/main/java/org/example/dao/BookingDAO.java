@@ -14,6 +14,9 @@ public class BookingDAO {
         return DriverManager.getConnection(dbURL, dbUser, dbPass);
     }
 
+
+
+
     // ============================================
     // 1. GENERATE BOOKING ID
     // ============================================
