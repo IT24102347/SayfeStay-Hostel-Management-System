@@ -6,6 +6,7 @@
     response.sendRedirect(request.getContextPath() + "/login.jsp");
     return;
   }
+
 %>
 <!DOCTYPE html>
 <html>
