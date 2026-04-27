@@ -17,7 +17,6 @@ public class MealNotificationDAO {
     private static final String JDBC_USER = "sa";
     private static final String JDBC_PASSWORD = "Japan@123*"; // change if needed
 
-
     static {
         try {
             Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
