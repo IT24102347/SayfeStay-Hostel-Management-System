@@ -12,6 +12,7 @@ import java.util.List;
 
 public class MealNotificationDAO {
 
+
     private static final String JDBC_URL =
             "jdbc:sqlserver://localhost:1433;databaseName=hostelManagementDB;encrypt=true;trustServerCertificate=true";
     private static final String JDBC_USER = "sa";
