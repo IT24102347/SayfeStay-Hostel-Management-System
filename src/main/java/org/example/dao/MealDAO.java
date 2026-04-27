@@ -26,15 +26,27 @@ public class MealDAO {
         return DriverManager.getConnection(dbURL, dbUser, dbPass);
     }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3d19380
     public List<DailyMenu> getTodaysMenu() {
         List<DailyMenu> list = new ArrayList<>();
         String sql = "SELECT * FROM daily_menu WHERE menu_date = CAST(GETDATE() AS DATE) ORDER BY " +
                 "CASE meal_type WHEN 'Breakfast' THEN 1 WHEN 'Lunch' THEN 2 WHEN 'Dinner' THEN 3 WHEN 'Tea' THEN 4 ELSE 5 END, id DESC";
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3d19380
         try (Connection con = getConnection();
              PreparedStatement pst = con.prepareStatement(sql);
              ResultSet rs = pst.executeQuery()) {
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3d19380
             while (rs.next()) {
                 list.add(mapDailyMenu(rs));
             }
@@ -60,6 +72,10 @@ public class MealDAO {
         return null;
     }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3d19380
     public boolean addMenuItem(DailyMenu menu) {
         String sql = "INSERT INTO daily_menu " +
                 "(menu_date, meal_type, item_name, description, price, is_available, prepared_by, created_at, updated_at) " +
@@ -83,6 +99,10 @@ public class MealDAO {
         }
     }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3d19380
     public boolean updateMenuItem(DailyMenu menu) {
         String sql = "UPDATE daily_menu SET menu_date = ?, meal_type = ?, item_name = ?, description = ?, " +
                 "price = ?, is_available = ?, prepared_by = ?, updated_at = GETDATE() WHERE id = ?";
