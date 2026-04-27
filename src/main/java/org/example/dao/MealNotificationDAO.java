@@ -33,11 +33,14 @@ public class MealNotificationDAO {
     public boolean createNotification(MealNotification notification) {
         String sql = "INSERT INTO meal_notifications (message, created_by) VALUES (?, ?)";
 
+
         try (Connection con = getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
 
             ps.setString(1, notification.getMessage());
             ps.setString(2, notification.getCreatedBy());
+
+
 
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
