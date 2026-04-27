@@ -445,7 +445,7 @@
     <!-- PAGE HEADING -->
     <div class="page-header-row">
         <h1 class="page-heading">Booking Management</h1>
-        <a href="<%= request.getContextPath() %>/dashboard/owner" class="btn-back-owner">
+        <a href="<%= request.getContextPath() %>/dashboard/owner" class="btn-back-owner" target="_top">
             <i class="fas fa-arrow-left"></i> Back to Dashboard
         </a>
     </div>
