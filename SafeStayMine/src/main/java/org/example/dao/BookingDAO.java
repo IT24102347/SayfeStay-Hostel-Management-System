@@ -9,8 +9,8 @@ public class BookingDAO {
 
     private Connection getConnection() throws SQLException {
         String dbURL = "jdbc:sqlserver://localhost:1433;databaseName=hostelManagementDB;encrypt=false;trustServerCertificate=true;";
-        String dbUser = "admin";
-        String dbPass = "123456";
+        String dbUser = "sa";
+        String dbPass = "Japan@123*";
         return DriverManager.getConnection(dbURL, dbUser, dbPass);
     }
 
