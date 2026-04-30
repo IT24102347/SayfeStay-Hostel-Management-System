@@ -1,0 +1,1065 @@
+CREATE DATABASE hostelManagementDB;
+GO
+
+use hostelManagementDB;
+
+
+CREATE TABLE users (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    userId VARCHAR(20) UNIQUE NOT NULL,
+    username VARCHAR(50) NOT NULL, b 
+
+
+
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT GETDATE()
+);
+
+CREATE TABLE student_details (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    userId VARCHAR(20) UNIQUE NOT NULL,
+    fullName VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    phone VARCHAR(15) NOT NULL,
+    address VARCHAR(500) NOT NULL,
+    campus_name VARCHAR(100) NOT NULL,
+    studyYear INT NOT NULL DEFAULT 1,
+    guardian_name VARCHAR(100) NOT NULL,
+    guardian_phone VARCHAR(15) NOT NULL,
+    guardian_relationship VARCHAR(50) NOT NULL DEFAULT 'Parent',
+    emergency_contact VARCHAR(15) NOT NULL DEFAULT 'Not Provided', -- NOT NULL
+    registration_date DATETIME NOT NULL DEFAULT GETDATE(),
+    
+    FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE,
+    
+	    -- Validation constraints
+    CONSTRAINT CHK_StudyYear CHECK (studyYear BETWEEN 1 AND 5),
+    CONSTRAINT CHK_Phone CHECK (LEN(phone) >= 10),
+    CONSTRAINT CHK_GuardianPhone CHECK (LEN(guardian_phone) >= 10),
+    CONSTRAINT CHK_EmergencyContact CHECK (
+        (LEN(emergency_contact) >= 10 AND ISNUMERIC(emergency_contact) = 1) 
+        OR emergency_contact = 'Not Provided'
+    )
+);
+
+CREATE TABLE staff_details (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    userId VARCHAR(20) UNIQUE NOT NULL,
+    fullName VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    phone VARCHAR(15) NOT NULL,
+    address VARCHAR(500) NOT NULL,
+    staff_role VARCHAR(50) NOT NULL,
+    company_name VARCHAR(100) NOT NULL,
+    department VARCHAR(50) NOT NULL,
+    work_shift VARCHAR(50) NOT NULL DEFAULT 'Day Shift',
+    salary_info VARCHAR(100),
+    join_date DATE NOT NULL DEFAULT GETDATE(),
+    registration_date DATETIME NOT NULL DEFAULT GETDATE(),
+    FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE
+);
+
+select * from users
+select * from student_details
+select * from staff_details
+
+
+INSERT INTO users (userId, username, password, role) VALUES 
+('STD001', 'rashmi', '123', 'Student');
+
+
+
+INSERT INTO student_details 
+(userId, fullName, email, phone, address, campus_name, studyYear, 
+ guardian_name, guardian_phone, guardian_relationship, emergency_contact)
+VALUES 
+('STD001', 'Rashmi Perera', 'rashmi@gmail.com', '0771234567', 
+ '123 Main Street, Colombo', 'Colombo Campus', 2,
+ 'Mr. Sunil Perera', '0779876543', 'Father', '0112345678');
+
+ALTER TABLE staff_details
+DROP COLUMN salary_info;
+
+CREATE TABLE owner (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    userId VARCHAR(20) UNIQUE NOT NULL,      -- OWN001, OWN002
+    fullName VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    phone VARCHAR(15) NOT NULL,
+    address VARCHAR(500),
+    company_name VARCHAR(100),
+    created_at DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE
+);
+
+SELECT * FROM owner WHERE userId = 'OWN001';
+INSERT INTO owner (userId, fullName, email, phone, address, company_name)
+VALUES ('OWN001', 'Dimuthu', 'dimuthu@email.com', '0771234567', 'Colombo', 'SafeStay');
+
+INSERT INTO hostel (ownerId, hostel_name, address, city, total_rooms, available_rooms, contact_number, email, warden_name, warden_phone, status)
+VALUES ('OWN001', 'SafeStay Hostel', '123 Main Street, Colombo', 'Colombo', 20, 20, '0771234567', 'safestay@email.com', 'Dimuthu', '0771234567', 'Active');
+
+
+CREATE TABLE hostel (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    ownerId VARCHAR(20) NOT NULL,            -- Link to owner.userId
+    hostel_name VARCHAR(100) NOT NULL,
+    address VARCHAR(500) NOT NULL,
+    city VARCHAR(50) NOT NULL,
+    total_rooms INT NOT NULL DEFAULT 0,
+    available_rooms INT NOT NULL DEFAULT 0,
+    contact_number VARCHAR(15) NOT NULL,
+    email VARCHAR(100),
+    warden_name VARCHAR(100),
+    warden_phone VARCHAR(15),
+    status VARCHAR(20) DEFAULT 'Active',
+    created_at DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (ownerId) REFERENCES owner(userId) ON DELETE CASCADE
+);
+
+
+
+CREATE TABLE payment (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    payment_no VARCHAR(50) UNIQUE NOT NULL,
+    studentId VARCHAR(20) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_date DATETIME DEFAULT GETDATE(),
+    payment_method VARCHAR(50) NOT NULL,
+    status VARCHAR(20) DEFAULT 'Completed',
+    created_at DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (studentId) REFERENCES users(userId)
+);
+
+CREATE TABLE maintenance (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    request_no VARCHAR(50) UNIQUE NOT NULL,
+    studentId VARCHAR(20) NOT NULL,
+    room_id INT NOT NULL,
+    issue_type VARCHAR(50) NOT NULL,
+    description TEXT NOT NULL,
+    priority VARCHAR(20) DEFAULT 'Medium',
+    status VARCHAR(20) DEFAULT 'Pending',
+    created_at DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (studentId) REFERENCES users(userId),
+    FOREIGN KEY (room_id) REFERENCES room(id)
+);
+
+CREATE TABLE attendance (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    studentId VARCHAR(20) NOT NULL,
+    attendance_date DATE NOT NULL,           -- Which day
+    check_in_time DATETIME NOT NULL,          -- When they checked in
+    check_out_time DATETIME,                  -- When they checked out
+    status VARCHAR(20) DEFAULT 'Present',
+    marked_by VARCHAR(20),
+    remarks VARCHAR(255),
+    created_at DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (studentId) REFERENCES users(userId)
+    -- NO unique constraint - allow multiple entries per day
+);
+
+
+select * from attendance
+
+-- ============================================
+-- 7. ROOM TABLE (Enhanced)
+-- ============================================
+
+/* ============================================================
+   SafeStayMine - Room + Inquiry module schema (SQL Server)
+   Target DB: hostelManagementDB
+   ============================================================ */
+
+SET NOCOUNT ON;
+GO
+
+IF DB_ID('hostelManagementDB') IS NULL
+BEGIN
+    CREATE DATABASE hostelManagementDB;
+END
+GO
+
+USE hostelManagementDB;
+GO
+
+/* ============================================================
+   1) Dependency tables
+   ============================================================ */
+
+IF OBJECT_ID('dbo.users', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.users (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        userId VARCHAR(20) NOT NULL UNIQUE,
+        username VARCHAR(50) NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(30) NOT NULL,
+        fullName VARCHAR(100) NULL,
+        created_at DATETIME NOT NULL DEFAULT GETDATE()
+    );
+END
+GO
+
+IF OBJECT_ID('dbo.owner', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.owner (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        userId VARCHAR(20) NOT NULL UNIQUE,
+        fullName VARCHAR(100) NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        phone VARCHAR(15) NOT NULL,
+        address VARCHAR(500) NULL,
+        company_name VARCHAR(100) NULL,
+        created_at DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_owner_user FOREIGN KEY (userId)
+            REFERENCES dbo.users(userId) ON DELETE CASCADE
+    );
+END
+GO
+
+IF OBJECT_ID('dbo.student_details', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.student_details (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        userId VARCHAR(20) NOT NULL UNIQUE,
+        fullName VARCHAR(100) NOT NULL,
+        email VARCHAR(100) NOT NULL UNIQUE,
+        phone VARCHAR(15) NOT NULL,
+        address VARCHAR(500) NOT NULL,
+        campus_name VARCHAR(100) NOT NULL,
+        studyYear INT NOT NULL DEFAULT 1,
+        guardian_name VARCHAR(100) NOT NULL,
+        guardian_phone VARCHAR(15) NOT NULL,
+        guardian_relationship VARCHAR(50) NOT NULL DEFAULT 'Parent',
+        emergency_contact VARCHAR(15) NOT NULL DEFAULT 'Not Provided',
+        registration_date DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_student_user FOREIGN KEY (userId)
+            REFERENCES dbo.users(userId) ON DELETE CASCADE,
+        CONSTRAINT CHK_Student_StudyYear CHECK (studyYear BETWEEN 1 AND 5)
+    );
+END
+GO
+
+/* ============================================================
+   2) Room module tables
+   ============================================================ */
+
+IF OBJECT_ID('dbo.hostel', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.hostel (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        ownerId VARCHAR(20) NOT NULL,
+        hostel_name VARCHAR(100) NOT NULL,
+        address VARCHAR(500) NOT NULL,
+        city VARCHAR(50) NOT NULL,
+        total_rooms INT NOT NULL DEFAULT 0,
+        available_rooms INT NOT NULL DEFAULT 0,
+        contact_number VARCHAR(15) NOT NULL,
+        email VARCHAR(100) NULL,
+        warden_name VARCHAR(100) NULL,
+        warden_phone VARCHAR(15) NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'Active',
+        created_at DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_hostel_owner FOREIGN KEY (ownerId)
+            REFERENCES dbo.owner(userId) ON DELETE CASCADE
+    );
+END
+GO
+
+IF OBJECT_ID('dbo.room', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.room (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        hostel_id INT NOT NULL,
+        room_number VARCHAR(20) NOT NULL UNIQUE,
+        floor_number INT NOT NULL,
+        room_type VARCHAR(50) NOT NULL,
+        capacity INT NOT NULL,
+        occupied INT NOT NULL DEFAULT 0,
+        available_slots INT NULL,
+        price_monthly DECIMAL(10,2) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'Available',
+        bed_type VARCHAR(50) NOT NULL,
+        bathroom_type VARCHAR(50) NOT NULL,
+        has_wifi BIT NOT NULL DEFAULT 0,
+        has_study_table BIT NOT NULL DEFAULT 0,
+        has_cupboard BIT NOT NULL DEFAULT 0,
+        has_fan BIT NOT NULL DEFAULT 0,
+        has_ac BIT NOT NULL DEFAULT 0,
+        has_laundry_access BIT NOT NULL DEFAULT 0,
+        has_room_cleaning BIT NOT NULL DEFAULT 0,
+        image_paths NVARCHAR(MAX) NULL,
+        description NVARCHAR(MAX) NULL,
+        created_at DATETIME NOT NULL DEFAULT GETDATE(),
+        updated_at DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_room_hostel FOREIGN KEY (hostel_id)
+            REFERENCES dbo.hostel(id) ON DELETE CASCADE,
+        CONSTRAINT CHK_room_floor CHECK (floor_number BETWEEN 1 AND 5),
+        CONSTRAINT CHK_room_capacity CHECK (capacity BETWEEN 1 AND 5),
+        CONSTRAINT CHK_room_occupied CHECK (occupied >= 0 AND occupied <= capacity),
+        CONSTRAINT CHK_room_status CHECK (
+            status IN ('Available', 'Partially Occupied', 'Full', 'Under Maintenance')
+        )
+    );
+END
+GO
+
+-- Used by RoomDAO.deleteRoom() for dependency check
+IF OBJECT_ID('dbo.booking_request', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.booking_request (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        booking_id VARCHAR(50) NOT NULL UNIQUE,
+        student_id VARCHAR(20) NOT NULL,
+        room_id INT NOT NULL,
+        student_name VARCHAR(100) NOT NULL,
+        student_age INT NOT NULL,
+        student_phone VARCHAR(15) NOT NULL,
+        student_email VARCHAR(100) NOT NULL,
+        guardian_name VARCHAR(100) NOT NULL,
+        guardian_phone VARCHAR(15) NOT NULL,
+        guardian_relationship VARCHAR(50) NOT NULL DEFAULT 'Parent',
+        booking_start_date DATE NOT NULL,
+        booking_end_date DATE NOT NULL,
+        duration_months INT NOT NULL,
+        special_requests NVARCHAR(MAX) NULL,
+        key_money DECIMAL(10,2) NOT NULL,
+        monthly_rent DECIMAL(10,2) NOT NULL,
+        total_amount DECIMAL(10,2) NOT NULL,
+        payment_method VARCHAR(50) NULL,
+        payment_status VARCHAR(20) NOT NULL DEFAULT 'Pending',
+        status VARCHAR(20) NOT NULL DEFAULT 'Pending',
+        admin_remarks NVARCHAR(MAX) NULL,
+        requested_at DATETIME NOT NULL DEFAULT GETDATE(),
+        approved_at DATETIME NULL,
+        approved_by VARCHAR(20) NULL,
+        CONSTRAINT FK_booking_user FOREIGN KEY (student_id)
+            REFERENCES dbo.users(userId) ON DELETE CASCADE,
+        CONSTRAINT FK_booking_room FOREIGN KEY (room_id)
+            REFERENCES dbo.room(id)
+    );
+END
+GO
+
+/* ============================================================
+   3) Inquiry module tables
+   ============================================================ */
+
+IF OBJECT_ID('dbo.inquiry', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.inquiry (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        inquiry_id VARCHAR(50) NOT NULL UNIQUE,
+        student_id VARCHAR(20) NOT NULL,
+        room_id INT NULL,
+        subject VARCHAR(200) NOT NULL,
+        message NVARCHAR(MAX) NOT NULL,
+        inquiry_type VARCHAR(50) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'Pending',
+        created_at DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_inquiry_user FOREIGN KEY (student_id)
+            REFERENCES dbo.users(userId) ON DELETE CASCADE,
+        CONSTRAINT FK_inquiry_room FOREIGN KEY (room_id)
+            REFERENCES dbo.room(id),
+        CONSTRAINT CHK_inquiry_status CHECK (status IN ('Pending', 'Replied', 'Closed')),
+        CONSTRAINT CHK_inquiry_type CHECK (
+            inquiry_type IN ('Room Details', 'Location', 'Photos', 'Facilities', 'General')
+        )
+    );
+END
+GO
+
+IF OBJECT_ID('dbo.inquiry_reply', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.inquiry_reply (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        inquiry_id INT NOT NULL,
+        admin_id VARCHAR(20) NOT NULL,
+        reply_message NVARCHAR(MAX) NOT NULL,
+        replied_at DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_inquiry_reply_inquiry FOREIGN KEY (inquiry_id)
+            REFERENCES dbo.inquiry(id) ON DELETE CASCADE,
+        CONSTRAINT FK_inquiry_reply_admin FOREIGN KEY (admin_id)
+            REFERENCES dbo.users(userId)
+    );
+END
+GO
+
+/* ============================================================
+   4) Performance indexes
+   ============================================================ */
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'idx_room_status' AND object_id = OBJECT_ID('dbo.room')
+)
+    CREATE INDEX idx_room_status ON dbo.room(status, available_slots);
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'idx_room_price' AND object_id = OBJECT_ID('dbo.room')
+)
+    CREATE INDEX idx_room_price ON dbo.room(price_monthly);
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'idx_booking_student' AND object_id = OBJECT_ID('dbo.booking_request')
+)
+    CREATE INDEX idx_booking_student ON dbo.booking_request(student_id, status);
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'idx_inquiry_student' AND object_id = OBJECT_ID('dbo.inquiry')
+)
+    CREATE INDEX idx_inquiry_student ON dbo.inquiry(student_id, status);
+GO
+
+/* ============================================================
+   5) Procedure used for room status normalization
+   ============================================================ */
+
+IF OBJECT_ID('dbo.sp_update_room_status', 'P') IS NULL
+BEGIN
+    EXEC(N'CREATE PROCEDURE dbo.sp_update_room_status AS BEGIN SET NOCOUNT ON; END');
+END
+GO
+
+ALTER PROCEDURE dbo.sp_update_room_status
+    @room_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @capacity INT, @occupied INT;
+
+    SELECT @capacity = capacity, @occupied = occupied
+    FROM dbo.room
+    WHERE id = @room_id;
+
+    IF @capacity IS NULL
+        RETURN;
+
+    IF @occupied <= 0
+        UPDATE dbo.room
+        SET status = 'Available',
+            available_slots = @capacity,
+            updated_at = GETDATE()
+        WHERE id = @room_id;
+    ELSE IF @occupied < @capacity
+        UPDATE dbo.room
+        SET status = 'Partially Occupied',
+            available_slots = @capacity - @occupied,
+            updated_at = GETDATE()
+        WHERE id = @room_id;
+    ELSE
+        UPDATE dbo.room
+        SET status = 'Full',
+            available_slots = 0,
+            updated_at = GETDATE()
+        WHERE id = @room_id;
+END
+GO
+
+/* Optional helper objects for room module consistency */
+CREATE OR ALTER VIEW dbo.v_available_rooms AS
+SELECT
+    r.*,
+    h.hostel_name,
+    h.address AS hostel_address,
+    h.city,
+    (r.capacity - r.occupied) AS slots_available
+FROM dbo.room r
+JOIN dbo.hostel h ON r.hostel_id = h.id
+WHERE r.status IN ('Available', 'Partially Occupied')
+  AND r.occupied < r.capacity;
+GO
+
+CREATE OR ALTER TRIGGER dbo.tr_update_available_slots
+ON dbo.room
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE r
+    SET r.available_slots = CASE
+            WHEN r.occupied <= r.capacity THEN r.capacity - r.occupied
+            ELSE 0
+        END,
+        r.updated_at = GETDATE()
+    FROM dbo.room r
+    INNER JOIN inserted i ON r.id = i.id;
+
+    DECLARE @room_id INT;
+    DECLARE room_cursor CURSOR LOCAL FAST_FORWARD FOR
+        SELECT id FROM inserted;
+
+    OPEN room_cursor;
+    FETCH NEXT FROM room_cursor INTO @room_id;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        EXEC dbo.sp_update_room_status @room_id;
+        FETCH NEXT FROM room_cursor INTO @room_id;
+    END
+
+    CLOSE room_cursor;
+    DEALLOCATE room_cursor;
+END
+GO
+
+PRINT 'Room + Inquiry schema ready.';
+GO
+
+
+
+select * from room;
+select * from booking_request;
+
+select * from inquiry;
+select * from inquiry_reply;
+
+
+
+
+
+--------------------------------------------------------------------------------------
+
+
+
+DROP TABLE IF EXISTS advanced_meal_order_items;
+DROP TABLE IF EXISTS advanced_meal_orders;
+DROP TABLE IF EXISTS advanced_meal_column_parts;
+DROP TABLE IF EXISTS advanced_meal_columns;
+DROP TABLE IF EXISTS advanced_meal_sections;
+DROP TABLE IF EXISTS meal_orders;
+DROP TABLE IF EXISTS meal_enrollments;
+DROP TABLE IF EXISTS daily_menu;
+DROP TABLE IF EXISTS meal_plans;
+
+
+CREATE TABLE meal_plans (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    plan_name VARCHAR(50) NOT NULL,
+    description VARCHAR(255) NOT NULL DEFAULT '',
+    meals_per_day INT NOT NULL DEFAULT 3,
+    weekly_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+    is_active BIT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT GETDATE()
+);
+
+
+CREATE TABLE daily_menu (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    menu_date DATE NOT NULL,
+    meal_type VARCHAR(20) NOT NULL, -- Breakfast, Lunch, Dinner, Tea
+    item_name VARCHAR(100) NOT NULL,
+    description VARCHAR(255) NOT NULL DEFAULT '',
+    price DECIMAL(10,2) NOT NULL DEFAULT 0,
+    is_available BIT NOT NULL DEFAULT 1,
+    prepared_by VARCHAR(20),
+    created_at DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME NOT NULL DEFAULT GETDATE()
+);
+
+
+CREATE TABLE meal_enrollments (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    studentId VARCHAR(20) NOT NULL,
+    plan_id INT NOT NULL,
+    start_date DATE NOT NULL,
+    weekly_cost DECIMAL(10,2) NOT NULL DEFAULT 0,
+    is_active BIT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME NOT NULL DEFAULT GETDATE(),
+    FOREIGN KEY (studentId) REFERENCES users(userId),
+    FOREIGN KEY (plan_id) REFERENCES meal_plans(id)
+);
+
+CREATE TABLE meal_orders (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    order_no VARCHAR(20) NOT NULL UNIQUE,
+    studentId VARCHAR(20) NOT NULL,
+    meal_date DATE NOT NULL,
+    meal_type VARCHAR(20) NOT NULL,
+    item_name VARCHAR(100) NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    price DECIMAL(10,2) NOT NULL DEFAULT 0,
+    status VARCHAR(20) NOT NULL DEFAULT 'Pending', -- Pending, Prepared, Served, Cancelled
+    ordered_at DATETIME NOT NULL DEFAULT GETDATE(),
+    prepared_by VARCHAR(20),
+    served_at DATETIME,
+    FOREIGN KEY (studentId) REFERENCES users(userId)
+);
+
+select * from meal_orders;
+select * from daily_menu;
+select * from advanced_meal_order_items;
+select * from advanced_meal_orders;
+select * from advanced_meal_columns;
+select * from advanced_meal_sections;
+
+CREATE TABLE advanced_meal_sections (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    meal_date DATE NOT NULL,
+    meal_type VARCHAR(20) NOT NULL,          -- Breakfast / Lunch / Dinner / Tea
+    order_before DATETIME NOT NULL,
+    created_by VARCHAR(20) NOT NULL,         -- kitchen staff userId
+    created_at DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME NOT NULL DEFAULT GETDATE(),
+    is_active BIT NOT NULL DEFAULT 1,
+
+    CONSTRAINT UQ_advanced_meal_sections UNIQUE (meal_date, meal_type),
+
+    CONSTRAINT CHK_advanced_meal_type CHECK (
+        meal_type IN ('Breakfast', 'Lunch', 'Dinner', 'Tea')
+    ),
+
+    FOREIGN KEY (created_by) REFERENCES users(userId)
+);
+GO
+
+CREATE TABLE advanced_meal_columns (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    section_id INT NOT NULL,
+    column_no INT NOT NULL,                  -- 1, 2, 3, 4...
+    column_type VARCHAR(20) NOT NULL DEFAULT 'NORMAL', -- SPLIT or NORMAL
+    item_name VARCHAR(150) NULL,             -- for normal column
+    image_path VARCHAR(500) NULL,            -- for normal column
+    price DECIMAL(10,2) NOT NULL DEFAULT 0,  -- whole column price
+    is_available BIT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME NOT NULL DEFAULT GETDATE(),
+
+    CONSTRAINT CHK_advanced_meal_column_type CHECK (
+        column_type IN ('SPLIT', 'NORMAL')
+    ),
+
+    CONSTRAINT UQ_advanced_meal_columns UNIQUE (section_id, column_no),
+
+    FOREIGN KEY (section_id) REFERENCES advanced_meal_sections(id) ON DELETE CASCADE
+);
+GO
+
+
+CREATE TABLE advanced_meal_column_parts (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    column_id INT NOT NULL,
+    part_no INT NOT NULL,
+    part_name VARCHAR(150) NOT NULL,
+    image_path VARCHAR(500) NULL,
+    created_at DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME NOT NULL DEFAULT GETDATE(),
+
+    CONSTRAINT UQ_advanced_meal_column_parts UNIQUE (column_id, part_no),
+
+    FOREIGN KEY (column_id) REFERENCES advanced_meal_columns(id) ON DELETE CASCADE
+);
+GO
+
+CREATE TABLE advanced_meal_orders (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    order_no VARCHAR(30) NOT NULL UNIQUE,
+    section_id INT NOT NULL,
+    studentId VARCHAR(20) NOT NULL,
+    meal_date DATE NOT NULL,
+    meal_type VARCHAR(20) NOT NULL,
+    selected_summary VARCHAR(1000) NOT NULL, -- text summary for easy display
+    total_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+    status VARCHAR(20) NOT NULL DEFAULT 'Pending', -- Pending / Prepared / Served / Cancelled
+    ordered_at DATETIME NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME NOT NULL DEFAULT GETDATE(),
+    prepared_by VARCHAR(20) NULL,
+    served_at DATETIME NULL,
+
+    CONSTRAINT CHK_advanced_meal_order_status CHECK (
+        status IN ('Pending', 'Prepared', 'Served', 'Cancelled')
+    ),
+
+    CONSTRAINT CHK_advanced_meal_order_type CHECK (
+        meal_type IN ('Breakfast', 'Lunch', 'Dinner', 'Tea')
+    ),
+
+
+    FOREIGN KEY (section_id) REFERENCES advanced_meal_sections(id),
+    FOREIGN KEY (studentId) REFERENCES users(userId),
+    FOREIGN KEY (prepared_by) REFERENCES users(userId)
+);
+GO
+CREATE TABLE advanced_meal_order_items (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    order_id INT NOT NULL,
+    column_id INT NOT NULL,
+    column_no INT NOT NULL,
+    item_label VARCHAR(500) NOT NULL,        -- snapshot text
+    price DECIMAL(10,2) NOT NULL DEFAULT 0,
+
+    CONSTRAINT UQ_advanced_meal_order_items UNIQUE (order_id, column_id),
+
+    FOREIGN KEY (order_id) REFERENCES advanced_meal_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (column_id) REFERENCES advanced_meal_columns(id)
+);
+GO
+
+
+ALTER TABLE advanced_meal_columns
+ALTER COLUMN image_path NVARCHAR(MAX) NULL;
+
+ALTER TABLE advanced_meal_column_parts
+ALTER COLUMN image_path NVARCHAR(MAX) NULL;
+
+
+
+
+
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='meal_notifications' AND xtype='U')
+BEGIN
+    CREATE TABLE meal_notifications (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        message NVARCHAR(1000) NOT NULL,
+        created_by VARCHAR(20) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT GETDATE(),
+        FOREIGN KEY (created_by) REFERENCES users(userId)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='meal_notification_views' AND xtype='U')
+BEGIN
+    CREATE TABLE meal_notification_views (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        notification_id INT NOT NULL,
+        student_id VARCHAR(20) NOT NULL,
+        viewed_at DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT UQ_meal_notification_student UNIQUE (notification_id, student_id),
+        FOREIGN KEY (notification_id) REFERENCES meal_notifications(id) ON DELETE CASCADE,
+        FOREIGN KEY (student_id) REFERENCES users(userId)
+    );
+END
+GO
+
+SELECT * FROM meal_notifications;
+
+
+
+
+------------------------------------------------------------------Laundry--------------------------------------------------
+
+CREATE TABLE laundry_items (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    item_name VARCHAR(100),
+    base_price DECIMAL(10,2)
+);
+
+select * from laundry_items;
+
+CREATE TABLE laundry_requests (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    request_no VARCHAR(20) UNIQUE,
+    studentId VARCHAR(20) NOT NULL, -- users(userId) ??? link ??
+    student_name VARCHAR(100),
+    floor_no INT,
+    room_no VARCHAR(20),
+    service_type VARCHAR(50), -- Wash, Iron, Both
+    urgency VARCHAR(20) DEFAULT 'Normal',
+    total_cost DECIMAL(10,2) DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'Pending', -- Pending, Accepted, Completed, Rejected
+    collection_date DATE,
+    assigned_time VARCHAR(50), -- Staff ??? ?????
+    notes VARCHAR(500), -- Reject ????? ????? ????? ????
+    created_at DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (studentId) REFERENCES users(userId)
+);
+
+CREATE TABLE laundry_announcements (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    title VARCHAR(200),
+    message TEXT,
+    posted_by VARCHAR(20),
+    posted_at DATETIME DEFAULT GETDATE()
+);
+
+INSERT INTO laundry_items (item_name, base_price) VALUES 
+('T-Shirt', 150.00),
+('Shirt (Formal)', 180.00),
+('Trouser / Pants', 200.00),
+('Jeans', 250.00),
+('Saree', 500.00),
+('Bed Sheet (Single)', 300.00),
+('Bed Sheet (Double)', 450.00),
+('Pillow Cover', 80.00),
+('Towel', 120.00),
+('Kurta', 350.00),
+('Shorts', 100.00),
+('Blanket / Comforter', 600.00),
+('Curtain', 400.00),
+('Sarong', 150.00);
+
+
+select * from laundry_requests;
+
+ALTER TABLE laundry_requests ADD assigned_time VARCHAR(50) DEFAULT '';
+ALTER TABLE laundry_requests ADD notes VARCHAR(500) DEFAULT '';
+
+
+CREATE TABLE damage_reports (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    student_id VARCHAR(20) NOT NULL,
+    request_no VARCHAR(20) NULL,
+    description TEXT NOT NULL,
+    photo1 VARCHAR(255),
+    photo2 VARCHAR(255),
+    photo3 VARCHAR(255),
+    photo4 VARCHAR(255),
+    status VARCHAR(20) DEFAULT 'Pending',
+    staff_response TEXT,
+    reported_at DATETIME DEFAULT GETDATE()
+);
+SELECT * FROM damage_reports;
+SELECT d.*, u.full_name as student_name 
+FROM damage_reports d 
+LEFT JOIN users u ON d.student_id = u.user_id 
+ORDER BY d.reported_at DESC;
+
+
+
+select * from damage_reports;
+-- Chats table
+CREATE TABLE laundry_chats (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    request_no VARCHAR(20) NOT NULL,
+    sender_id VARCHAR(20) NOT NULL,
+    sender_role VARCHAR(20) NOT NULL,
+    message TEXT NOT NULL,
+    sent_at DATETIME DEFAULT GETDATE()
+);
+
+-- Create notifications table
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='notifications' AND xtype='U')
+CREATE TABLE notifications (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    student_id VARCHAR(20) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    is_read BIT DEFAULT 0,
+    created_at DATETIME DEFAULT GETDATE()
+);
+
+select * from laundry_chats;
+select *from notifications;
+
+
+CREATE TABLE laundry_request_items (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    request_id INT NOT NULL,
+    item_id INT NOT NULL,
+    item_name VARCHAR(100) NOT NULL,
+    quantity INT NOT NULL DEFAULT 0,
+    unit_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+    total_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+    FOREIGN KEY (request_id) REFERENCES laundry_requests(id) ON DELETE CASCADE
+);
+
+
+-- Create simple laundry_payments table
+CREATE TABLE laundry_payments (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    studentId VARCHAR(20) NOT NULL,
+    payment_no VARCHAR(50) NOT NULL,
+    week_start_date DATE NOT NULL,
+    week_end_date DATE NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+    payment_date DATETIME NOT NULL DEFAULT GETDATE(),
+    CONSTRAINT FK_laundry_payments_student FOREIGN KEY (studentId) REFERENCES users(userId),
+    CONSTRAINT UQ_laundry_payments_payment_no UNIQUE (payment_no)
+);
+GO
+
+select * from laundry_payments
+
+
+
+
+-- Verify laundry_items have data
+SELECT * FROM laundry_request_items;
+select * from laundry_items;
+
+
+
+-- Add payment_date column
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE Name = 'payment_date' AND OBJECT_ID = OBJECT_ID('laundry_requests'))
+BEGIN
+    ALTER TABLE laundry_requests ADD payment_date DATETIME NULL;
+END
+GO
+
+
+-- Add payment_status column
+ALTER TABLE laundry_requests ADD payment_status VARCHAR(20) NOT NULL DEFAULT 'Pending';
+GO
+
+-- Add payment_date column  
+ALTER TABLE laundry_requests ADD payment_date DATETIME NULL;
+GO
+
+-- Update existing records
+UPDATE laundry_requests SET payment_status = 'Pending' WHERE payment_status IS NULL;
+GO
+
+-- Verify
+SELECT id, request_no, total_cost, payment_status, payment_date FROM laundry_requests;
+GO
+
+
+
+
+select * from cleaning_requests;
+
+CREATE TABLE cleaning_requests (
+    id INT PRIMARY KEY IDENTITY(1,1),
+    studentId VARCHAR(50) NOT NULL,
+    studentName VARCHAR(100) NOT NULL,
+    roomNo VARCHAR(20) NOT NULL,
+    floorNo INT NOT NULL,
+    cleaningType VARCHAR(50) NOT NULL,
+    requestDate DATE NOT NULL,
+    status VARCHAR(20) DEFAULT 'Pending',
+    price DECIMAL(10,2) DEFAULT 0.00,
+    requestedAt DATETIME DEFAULT GETDATE(),
+    assigned_date VARCHAR(50) DEFAULT 'N/A',
+    assigned_time VARCHAR(50) DEFAULT 'N/A',
+    staff_response VARCHAR(255) DEFAULT 'N/A',
+    completed_at VARCHAR(50) DEFAULT 'N/A'
+);
+
+
+
+
+
+
+
+
+
+
+----------------------------------------------------------------------------
+
+SELECT * FROM reviews;
+-- Step 1: Force drop
+DROP TABLE reviews;
+-- Step 2: Correct table hadanna
+CREATE TABLE reviews (
+    id          INT PRIMARY KEY IDENTITY(1,1),
+    student_Name NVARCHAR(100),
+    category    NVARCHAR(50),
+    rating      INT,
+    food_rating INT,
+    wifi_rating INT,
+    clean_rating INT,
+    staff_rating INT,
+    comment     NVARCHAR(MAX),
+    ownerReply  NVARCHAR(MAX),
+    status      NVARCHAR(20) DEFAULT 'PENDING',
+    created_at  DATETIME DEFAULT GETDATE()
+);
+
+
+SELECT * FROM reviews;
+
+-- 1. cleanlinessRating column add
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+               WHERE TABLE_NAME='reviews' AND COLUMN_NAME='cleanlinessRating')
+    ALTER TABLE reviews ADD cleanlinessRating INT DEFAULT 0;
+
+-- 2. wifiRating column add
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+               WHERE TABLE_NAME='reviews' AND COLUMN_NAME='wifiRating')
+    ALTER TABLE reviews ADD wifiRating INT DEFAULT 0;
+
+-- 3. staffRating column add
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+               WHERE TABLE_NAME='reviews' AND COLUMN_NAME='staffRating')
+    ALTER TABLE reviews ADD staffRating INT DEFAULT 0;
+
+-- 4. category column add (Room / Meal / Service)
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+               WHERE TABLE_NAME='reviews' AND COLUMN_NAME='category')
+    ALTER TABLE reviews ADD category VARCHAR(50) DEFAULT 'General';
+
+-- 5. ownerReply column add (already exists in most cases)
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+               WHERE TABLE_NAME='reviews' AND COLUMN_NAME='ownerReply')
+    ALTER TABLE reviews ADD ownerReply NVARCHAR(MAX) NULL;
+
+-- 6. repliedAt column add
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+               WHERE TABLE_NAME='reviews' AND COLUMN_NAME='repliedAt')
+    ALTER TABLE reviews ADD repliedAt DATETIME NULL;
+
+-- Verify — columns check
+SELECT COLUMN_NAME, DATA_TYPE, COLUMN_DEFAULT
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'reviews'
+ORDER BY ORDINAL_POSITION;
+
+-- ============================================
+-- Full table create script (if reviews table doesn't exist at all)
+-- ============================================
+
+CREATE TABLE reviews (
+    id          INT IDENTITY(1,1) PRIMARY KEY,
+    studentId   VARCHAR(50)   NOT NULL,
+    studentName NVARCHAR(100) NOT NULL,
+    roomNo      VARCHAR(20)   NULL,
+    rating      INT           NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    foodRating        INT     DEFAULT 0,
+    wifiRating        INT     DEFAULT 0,
+    cleanlinessRating INT     DEFAULT 0,
+    staffRating       INT     DEFAULT 0,
+    comment     NVARCHAR(MAX) NULL,
+    status      VARCHAR(20)   DEFAULT 'Pending',
+    ownerReply  NVARCHAR(MAX) NULL,
+    repliedAt   DATETIME      NULL,
+    created_at  DATETIME      DEFAULT GETDATE()
+);
+SELECT * FROM reviews;
+
+
+ALTER TABLE reviews ADD cleanlinessRating INT DEFAULT 0;
+ALTER TABLE reviews ADD wifiRating INT DEFAULT 0;
+ALTER TABLE reviews ADD staffRating INT DEFAULT 0;
+ALTER TABLE reviews ADD category VARCHAR(50) DEFAULT 'General';
+ALTER TABLE reviews ADD ownerReply NVARCHAR(MAX) NULL;
+ALTER TABLE reviews ADD repliedAt DATETIME NULL;
+
+SELECT COLUMN_NAME, DATA_TYPE 
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'reviews'
+ORDER BY ORDINAL_POSITION;
+-- ????????????????????????????????????????????????????
+-- Run this in SSMS on hostelManagementDB
+-- This adds studentId column so reviews save properly
+-- ????????????????????????????????????????????????????
+
+-- studentId column add (data save wenna)
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+               WHERE TABLE_NAME='reviews' AND COLUMN_NAME='studentId')
+    ALTER TABLE reviews ADD studentId VARCHAR(50) NULL;
+
+-- repliedAt column add (owner reply time)
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+               WHERE TABLE_NAME='reviews' AND COLUMN_NAME='repliedAt')
+    ALTER TABLE reviews ADD repliedAt DATETIME NULL;
+
+-- Verify all columns
+SELECT COLUMN_NAME, DATA_TYPE 
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'reviews'
+ORDER BY ORDINAL_POSITION;
+
+
+SELECT * FROM reviews;
